@@ -25,6 +25,9 @@ TMPFILE=$(mktemp /tmp/temp_dsgnt.json.XXXX)
 
 ## A request to designate API
 curl -sS --noproxy "*" -H "X-Auth-Token: $TOKEN" -H "X-Auth-All-Projects: True" "$OS_AUTH_URL:9001/v2/zones?limit=$TOTAL_COUNT" | jq . > $TMPFILE
+
+#true_active="select(.status==\"ACTIVE\") |"
+true_active=""
 for i in $(cat $TMPFILE | jq -r ".zones[] | $true_active .name" | awk '{gsub(/ /, ""); print}'); do
   DESIGNATE_SERIAL_OUT=$(cat $TMPFILE | jq -c ".zones[] | $true_active select ( .name | startswith(\"$i\")) | .serial" | awk '{gsub(/ /, ""); print}')
   [[ -z "$DESIGNATE_SERIAL_OUT" ]] && echo "Serial for requested zone is not found."
