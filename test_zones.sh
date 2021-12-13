@@ -21,13 +21,15 @@ ZONE_BIND_EMPTY=0
 TOTAL_COUNT=$(curl -sS --noproxy "*" -H "X-Auth-Token: $TOKEN" -H "X-Auth-All-Projects: True" "$OS_AUTH_URL:9001/v2/zones?limit=1" | jq -r '.metadata[] ')
 [[ -z "$TOTAL_COUNT" ]] && echo "TOTAL_COUNT of objects in metadata is 0."
 
-TMPFILE=$(mktemp /tmp/temp_dsgnt.json.XXXX)
+TMPFILE=$(mktemp /tmp/temp_dsgnt.json.XXXX) || exit 1
 
 ## A request to designate API
 curl -sS --noproxy "*" -H "X-Auth-Token: $TOKEN" -H "X-Auth-All-Projects: True" "$OS_AUTH_URL:9001/v2/zones?limit=$TOTAL_COUNT" | jq . > $TMPFILE
 
+#Use if only zones with active status should be selected 
 #true_active="select(.status==\"ACTIVE\") |"
 true_active=""
+
 for i in $(cat $TMPFILE | jq -r ".zones[] | $true_active .name" | awk '{gsub(/ /, ""); print}'); do
   DESIGNATE_SERIAL_OUT=$(cat $TMPFILE | jq -c ".zones[] | $true_active select ( .name | startswith(\"$i\")) | .serial" | awk '{gsub(/ /, ""); print}')
   [[ -z "$DESIGNATE_SERIAL_OUT" ]] && echo "Serial for requested zone is not found."
@@ -46,7 +48,11 @@ for i in $(cat $TMPFILE | jq -r ".zones[] | $true_active .name" | awk '{gsub(/ /
       fi
    fi
 done
-rm -r "$TMPFILE" 2>/dev/null
+
+## Deleting temporary file
+set -C
+trap "rm \"$TMPFILE\" > /dev/null; exit 1" EXIT SIGHUP SIGINT SIGTERM
+set +C
 
 ## Obtain telegraf metrics
   echo "telegraf_zone_serial_odds num=${ZONE_DIFF_SERIAL_NUM}"
